@@ -18,7 +18,9 @@ import * as Y from 'yjs';
 import { Disposable, Emitter, Event, URI } from '@theia/core';
 import {
     FileChange, FileDeleteOptions,
-    FileOverwriteOptions, FileSystemProviderCapabilities, FileType, Stat, WatchOptions, FileSystemProviderWithFileReadWriteCapability, FileWriteOptions
+    FileOverwriteOptions, FileSystemProviderCapabilities, FileType, Stat, WatchOptions, FileSystemProviderWithFileReadWriteCapability, FileWriteOptions,
+    FileSystemProviderError,
+    FileSystemProviderErrorCode
 } from '@theia/filesystem/lib/common/files';
 import { ProtocolBroadcastConnection, Workspace, Peer } from 'open-collaboration-protocol';
 
@@ -88,8 +90,12 @@ export class CollaborationFileSystemProvider implements FileSystemProviderWithFi
     watch(resource: URI, opts: WatchOptions): Disposable {
         return Disposable.NULL;
     }
-    stat(resource: URI): Promise<Stat> {
-        return this.connection.fs.stat(this.host.id, this.getHostPath(resource));
+    async stat(resource: URI): Promise<Stat> {
+        try {
+            return await this.connection.fs.stat(this.host.id, this.getHostPath(resource));
+        } catch (e) {
+            throw new FileSystemProviderError("File Not Found", FileSystemProviderErrorCode.FileNotFound);
+        }
     }
     mkdir(resource: URI): Promise<void> {
         return this.connection.fs.mkdir(this.host.id, this.getHostPath(resource));
