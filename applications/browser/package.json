@@ -64,7 +64,7 @@
     "@theia/ai-terminal": "1.60.1",
     "@theia/bulk-edit": "1.60.1",
     "@theia/callhierarchy": "1.60.1",
-    "@theia/collaboration": "1.60.1",
+    "theia-ide-workspace-collaboration-ext": "1.60.1",
     "@theia/console": "1.60.1",
     "@theia/core": "1.60.1",
     "@theia/debug": "1.60.1",
