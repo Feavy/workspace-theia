@@ -40,6 +40,13 @@ import { OpenCollaborationYjsProvider } from 'open-collaboration-yjs';
 import { createMutex } from 'lib0/mutex';
 import { CollaborationUtils } from './collaboration-utils';
 import debounce = require('@theia/core/shared/lodash.debounce');
+import { FileResourceResolver } from '@theia/filesystem/lib/browser';
+
+// @ts-ignore
+FileResourceResolver.prototype.shouldOverwrite = async function(uri: URI) {
+    console.log("overwrite", uri.toString());
+    return true;
+}
 
 export const CollaborationInstanceFactory = Symbol('CollaborationInstanceFactory');
 export type CollaborationInstanceFactory = (connection: CollaborationInstanceOptions) => CollaborationInstance;
