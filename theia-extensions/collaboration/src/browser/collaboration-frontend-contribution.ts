@@ -29,6 +29,7 @@ import { CollaborationWorkspaceService } from './collaboration-workspace-service
 import { StatusBar, StatusBarAlignment, StatusBarEntry } from '@theia/core/lib/browser/status-bar';
 import { codiconArray } from '@theia/core/lib/browser/widgets/widget';
 import { FrontendApplicationConfigProvider } from '@theia/core/lib/browser/frontend-application-config-provider';
+import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
 
 export const COLLABORATION_CATEGORY = 'Collaboration';
 
@@ -45,6 +46,7 @@ export const COLLABORATION_STATUS_BAR_ID = 'statusBar.collaboration';
 
 export const COLLABORATION_AUTH_TOKEN = 'THEIA_COLLAB_AUTH_TOKEN';
 export const COLLABORATION_SERVER_URL = 'COLLABORATION_SERVER_URL';
+export const WORKSPACE_SERVER_URL = 'WORKSPACE_SERVER_URL';
 export const DEFAULT_COLLABORATION_SERVER_URL = 'https://api.open-collab.tools/';
 
 @injectable()
@@ -76,22 +78,40 @@ export class CollaborationFrontendContribution implements CommandContribution {
     @inject(CollaborationInstanceFactory)
     protected readonly collaborationInstanceFactory: CollaborationInstanceFactory;
 
+    @inject(FrontendApplicationStateService)
+    protected readonly stateService: FrontendApplicationStateService;
+
     protected currentInstance?: CollaborationInstance;
 
     @postConstruct()
     protected init(): void {
         this.setStatusBarEntryDefault();
-        this.getCollaborationServerUrl().then(serverUrl => {
-            const authHandler = new ConnectionProvider({
-                url: serverUrl,
-                client: FrontendApplicationConfigProvider.get().applicationName,
-                fetch: window.fetch.bind(window),
-                opener: url => this.windowService.openNewWindow(url, { external: true }),
-                transports: [SocketIoTransportProvider],
-                userToken: localStorage.getItem(COLLABORATION_AUTH_TOKEN) ?? undefined
-            });
-            this.connectionProvider.resolve(authHandler);
-        }, err => this.connectionProvider.reject(err));
+        (async () => {
+            try {
+                const serverUrl = await this.getCollaborationServerUrl();
+                const workspaceServerUrl = await this.getWorkspaceServerUrl();
+                const { roomId, loginToken } = await this.fetchRoomData(workspaceServerUrl);
+
+                const authHandler = new ConnectionProvider({
+                    url: serverUrl,
+                    client: FrontendApplicationConfigProvider.get().applicationName,
+                    fetch: window.fetch.bind(window),
+                    opener: url => this.windowService.openNewWindow(url, { external: true }),
+                    transports: [SocketIoTransportProvider],
+                    userToken: loginToken ?? localStorage.getItem(COLLABORATION_AUTH_TOKEN) ?? undefined
+                });
+                this.connectionProvider.resolve(authHandler);
+
+                this.stateService.onStateChanged(async state => {
+                    if (state === 'ready') {
+                        this.commands.executeCommand(CollaborationCommands.JOIN_ROOM.id, roomId, loginToken);
+                    }
+                });
+            }catch (err) {
+                console.error(err);
+                this.connectionProvider.reject(err);
+            }
+        })();
     }
 
     protected async onStatusDefaultClick(): Promise<void> {
@@ -212,6 +232,22 @@ export class CollaborationFrontendContribution implements CommandContribution {
         return serverUrlVariable?.value || DEFAULT_COLLABORATION_SERVER_URL;
     }
 
+    protected async getWorkspaceServerUrl(): Promise<string> {
+        const serverUrlVariable = await this.envVariables.getValue(WORKSPACE_SERVER_URL);
+        if (!serverUrlVariable?.value) {
+            throw new Error('Workspace server URL not found in environment variables.');
+        }
+
+        return serverUrlVariable.value;
+    }
+
+    protected async fetchRoomData(workspaceServerUrl: string | undefined): Promise<{ roomId: string, loginToken?: string }> {
+        return await fetch(`${workspaceServerUrl}/api/collaboration/room`, {
+            credentials: 'include',
+            method: 'GET',
+        }).then(response => response.json()) 
+    }
+
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(CollaborationCommands.CREATE_ROOM, {
             execute: async () => {
@@ -251,28 +287,30 @@ export class CollaborationFrontendContribution implements CommandContribution {
             }
         });
         commands.registerCommand(CollaborationCommands.JOIN_ROOM, {
-            execute: async () => {
+            execute: async (id: string) => {
                 let joinRoomProgress: Progress | undefined;
                 const cancelTokenSource = new CancellationTokenSource();
                 try {
                     const authHandler = await this.connectionProvider.promise;
-                    const id = await this.quickInputService?.input({
-                        placeHolder: nls.localize('theia/collaboration/enterCode', 'Enter collaboration session code')
-                    });
-                    if (!id) {
-                        return;
-                    }
+                    // const id = await this.quickInputService?.input({
+                    //     placeHolder: nls.localize('theia/collaboration/enterCode', 'Enter collaboration session code')
+                    // });
+                    // if (!id) {
+                    //     return;
+                    // }
                     joinRoomProgress = await this.messageService.showProgress({
                         text: nls.localize('theia/collaboration/joiningRoom', 'Joining Session'),
                         options: {
                             cancelable: true
                         }
                     }, () => cancelTokenSource.cancel());
+
                     const roomClaim = await authHandler.joinRoom({
                         roomId: id,
                         reporter: info => joinRoomProgress?.report({ message: info.message }),
                         abortSignal: this.toAbortSignal(cancelTokenSource.token)
                     });
+
                     joinRoomProgress.cancel();
                     if (roomClaim.loginToken) {
                         localStorage.setItem(COLLABORATION_AUTH_TOKEN, roomClaim.loginToken);

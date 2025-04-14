@@ -43,6 +43,7 @@ import { CollaborationUtils } from './collaboration-utils';
 import debounce = require('@theia/core/shared/lodash.debounce');
 import { FileResourceResolver } from '@theia/filesystem/lib/browser';
 import { newWriteableStream, ReadableStreamEvents } from '@theia/core/lib/common/stream';
+import { CollaborationSharedTerminals } from './collaboration-shared-terminals';
 
 // @ts-ignore
 FileResourceResolver.prototype.shouldOverwrite = async function(uri: URI) {
@@ -104,6 +105,9 @@ export class CollaborationInstance implements Disposable {
 
     @inject(CollaborationColorService)
     protected readonly collaborationColorService: CollaborationColorService;
+
+    @inject(CollaborationSharedTerminals)
+    protected readonly collaborationSharedTerminals: CollaborationSharedTerminals;
 
     @inject(CollaborationUtils)
     protected readonly utils: CollaborationUtils;

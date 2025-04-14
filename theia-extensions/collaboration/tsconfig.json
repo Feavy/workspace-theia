@@ -4,7 +4,9 @@
     "rootDir": "src",
     "outDir": "lib",
     "baseUrl": ".",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": ["src"]
 }
