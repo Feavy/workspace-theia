@@ -32,15 +32,17 @@ import { Deferred } from '@theia/core/lib/common/promise-util';
 import { EditorDecoration, EditorWidget, Selection, TextEditorDocument, TrackedRangeStickiness } from '@theia/editor/lib/browser';
 import { DecorationStyle, OpenerService, SaveReason } from '@theia/core/lib/browser';
 import { CollaborationFileSystemProvider, CollaborationURI } from './collaboration-file-system-provider';
-import { Range } from '@theia/core/shared/vscode-languageserver-protocol';
+import { CancellationToken, Range } from '@theia/core/shared/vscode-languageserver-protocol';
 import { CollaborationColorService } from './collaboration-color-service';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
-import { FileChange, FileChangeType, FileOperation } from '@theia/filesystem/lib/common/files';
+import { FileChange, FileChangeType, FileOperation, FileReadStreamOptions } from '@theia/filesystem/lib/common/files';
+import { RemoteFileSystemProvider } from '@theia/filesystem/lib/common/remote-file-system-provider';
 import { OpenCollaborationYjsProvider } from 'open-collaboration-yjs';
 import { createMutex } from 'lib0/mutex';
 import { CollaborationUtils } from './collaboration-utils';
 import debounce = require('@theia/core/shared/lodash.debounce');
 import { FileResourceResolver } from '@theia/filesystem/lib/browser';
+import { newWriteableStream, ReadableStreamEvents } from '@theia/core/lib/common/stream';
 
 // @ts-ignore
 FileResourceResolver.prototype.shouldOverwrite = async function(uri: URI) {
@@ -111,6 +113,7 @@ export class CollaborationInstance implements Disposable {
     protected yjs = new Y.Doc();
     protected yjsAwareness = new awarenessProtocol.Awareness(this.yjs);
     protected yjsProvider: OpenCollaborationYjsProvider;
+    protected encoder = new TextEncoder();
     protected colorIndex = 0;
     protected editorDecorations = new Map<EditorWidget, string[]>();
     protected fileSystem?: CollaborationFileSystemProvider;
@@ -172,7 +175,7 @@ export class CollaborationInstance implements Disposable {
         this.toDispose.push(this.onDidCloseEmitter);
 
         this.registerProtocolEvents(connection);
-        this.registerEditorEvents(connection);
+        // this.registerEditorEvents(connection);
         this.registerFileSystemEvents(connection);
 
         if (this.isHost) {
@@ -282,10 +285,11 @@ export class CollaborationInstance implements Disposable {
     }
 
     protected isSharedResource(resource?: URI): boolean {
-        if (!resource) {
-            return false;
-        }
-        return this.isHost ? resource.scheme === 'file' : resource.scheme === CollaborationURI.scheme;
+        return true;
+        // if (!resource) {
+        //     return false;
+        // }
+        // return this.isHost ? resource.scheme === 'file' : resource.scheme === CollaborationURI.scheme;
     }
 
     protected registerFileSystemEvents(connection: types.ProtocolBroadcastConnection): void {
@@ -598,11 +602,35 @@ export class CollaborationInstance implements Disposable {
         for (const peer of [...data.guests, data.host]) {
             this.addPeer(peer);
         }
-        this.fileSystem = new CollaborationFileSystemProvider(this.options.connection, data.host, this.yjs);
-        this.fileSystem.readonly = this.readonly;
-        this.toDispose.push(this.fileService.registerProvider(CollaborationURI.scheme, this.fileSystem));
-        const workspaceDisposable = await this.workspaceService.setHostWorkspace(data.workspace, this.options.connection);
-        this.toDispose.push(workspaceDisposable);
+
+        function getHostPath(uri: URI): string {
+            const path = uri.path.toString().substring(1).split('/');
+            return path.slice(1).join('/');
+        }
+
+        this.registerEditorEvents(this.options.connection);
+
+        const self = this;
+
+        const readFileStreamRemote = RemoteFileSystemProvider.prototype.readFileStream;
+        RemoteFileSystemProvider.prototype.readFileStream = function (resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+            const path = getHostPath(resource);
+            if (self.yjs.share.has(path)) {
+                const stringValue = self.yjs.getText(path);
+                
+                const stream = newWriteableStream<Uint8Array>(data => BinaryBuffer.concat(data.map(item => BinaryBuffer.wrap(item))).buffer);
+                stream.write(self.encoder.encode(stringValue.toString()));
+                stream.end();
+                return stream;
+            } else {
+                return readFileStreamRemote.call(this, resource, opts, token);
+            }
+        };
+        // this.fileSystem = new CollaborationFileSystemProvider(this.options.connection, data.host, this.yjs);
+        // this.fileSystem.readonly = this.readonly;
+        // this.toDispose.push(this.fileService.registerProvider(CollaborationURI.scheme, this.fileSystem));
+        // const workspaceDisposable = await this.workspaceService.setHostWorkspace(data.workspace, this.options.connection);
+        // this.toDispose.push(workspaceDisposable);
     }
 
     protected addPeer(peer: types.Peer): void {
