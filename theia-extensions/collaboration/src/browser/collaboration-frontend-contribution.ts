@@ -254,7 +254,7 @@ export class CollaborationFrontendContribution implements CommandContribution {
             execute: async () => {
                 let joinRoomProgress: Progress | undefined;
                 const cancelTokenSource = new CancellationTokenSource();
-                try {
+                // try {
                     const authHandler = await this.connectionProvider.promise;
                     const id = await this.quickInputService?.input({
                         placeHolder: nls.localize('theia/collaboration/enterCode', 'Enter collaboration session code')
@@ -287,10 +287,11 @@ export class CollaborationFrontendContribution implements CommandContribution {
                         this.setStatusBarEntryDefault();
                     });
                     this.setStatusBarEntryConnected(roomClaim.roomId);
-                } catch (err) {
-                    joinRoomProgress?.cancel();
-                    await this.messageService.error(nls.localize('theia/collaboration/failedJoin', 'Failed to join room: {0}', err.message));
-                }
+                // } catch (err) {
+                //     console.trace(err);
+                //     joinRoomProgress?.cancel();
+                //     await this.messageService.error(nls.localize('theia/collaboration/failedJoin', 'Failed to join room: {0}', err.message));
+                // }
             }
         });
     }

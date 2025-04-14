@@ -35,7 +35,7 @@ import { CollaborationFileSystemProvider, CollaborationURI } from './collaborati
 import { Range } from '@theia/core/shared/vscode-languageserver-protocol';
 import { CollaborationColorService } from './collaboration-color-service';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
-import { FileChange, FileChangeType, FileOperation } from '@theia/filesystem/lib/common/files';
+import { FileChange, FileChangesEvent, FileChangeType, FileOperation, FileSystemProvider, ReadOnlyMessageFileSystemProvider } from '@theia/filesystem/lib/common/files';
 import { OpenCollaborationYjsProvider } from 'open-collaboration-yjs';
 import { createMutex } from 'lib0/mutex';
 import { CollaborationUtils } from './collaboration-utils';
@@ -46,6 +46,35 @@ import { FileResourceResolver } from '@theia/filesystem/lib/browser';
 FileResourceResolver.prototype.shouldOverwrite = async function(uri: URI) {
     console.log("overwrite", uri.toString());
     return true;
+}
+
+FileService.prototype.registerProvider = function(scheme: string, provider: FileSystemProvider): Disposable {
+    // @ts-ignore
+    this.providers.set(scheme, provider);
+    // @ts-ignore
+    this.onDidChangeFileSystemProviderRegistrationsEmitter.fire({ added: true, scheme, provider });
+    
+    const providerDisposables = new DisposableCollection();
+
+    // @ts-ignore
+    providerDisposables.push(provider.onDidChangeFile(changes => this.onDidFilesChangeEmitter.fire(new FileChangesEvent(changes))));
+    // @ts-ignore
+    providerDisposables.push(provider.onFileWatchError(() => this.handleFileWatchError()));
+    // @ts-ignore
+    providerDisposables.push(provider.onDidChangeCapabilities(() => this.onDidChangeFileSystemProviderCapabilitiesEmitter.fire({ provider, scheme })));
+    if (ReadOnlyMessageFileSystemProvider.is(provider)) {
+        // @ts-ignore
+        providerDisposables.push(provider.onDidChangeReadOnlyMessage(message => this.onDidChangeFileSystemProviderReadOnlyMessageEmitter.fire({ provider, scheme, message })));
+    }
+    
+    return Disposable.create(() => {
+        // @ts-ignore
+        this.onDidChangeFileSystemProviderRegistrationsEmitter.fire({ added: false, scheme, provider });
+        // @ts-ignore
+        this.providers.delete(scheme);
+
+        providerDisposables.dispose();
+    });
 }
 
 export const CollaborationInstanceFactory = Symbol('CollaborationInstanceFactory');
@@ -282,10 +311,11 @@ export class CollaborationInstance implements Disposable {
     }
 
     protected isSharedResource(resource?: URI): boolean {
-        if (!resource) {
-            return false;
-        }
-        return this.isHost ? resource.scheme === 'file' : resource.scheme === CollaborationURI.scheme;
+        return true;
+        // if (!resource) {
+        //     return false;
+        // }
+        // return this.isHost ? resource.scheme === 'file' : resource.scheme === CollaborationURI.scheme;
     }
 
     protected registerFileSystemEvents(connection: types.ProtocolBroadcastConnection): void {
@@ -600,9 +630,11 @@ export class CollaborationInstance implements Disposable {
         }
         this.fileSystem = new CollaborationFileSystemProvider(this.options.connection, data.host, this.yjs);
         this.fileSystem.readonly = this.readonly;
-        this.toDispose.push(this.fileService.registerProvider(CollaborationURI.scheme, this.fileSystem));
-        const workspaceDisposable = await this.workspaceService.setHostWorkspace(data.workspace, this.options.connection);
-        this.toDispose.push(workspaceDisposable);
+        // @ts-ignore
+        // this.fileService.providers.set("file", this.fileSystem);
+        this.toDispose.push(this.fileService.registerProvider("file", this.fileSystem));
+        // const workspaceDisposable = await this.workspaceService.setHostWorkspace(data.workspace, this.options.connection);
+        // this.toDispose.push(workspaceDisposable);
     }
 
     protected addPeer(peer: types.Peer): void {

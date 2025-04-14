@@ -31,14 +31,14 @@ export class CollaborationWorkspaceService extends WorkspaceService {
     async setHostWorkspace(workspace: Workspace, connection: ProtocolBroadcastConnection): Promise<Disposable> {
         this.collabWorkspace = workspace;
         this.connection = connection;
-        await this.setWorkspace({
-            isDirectory: false,
-            isFile: true,
-            isReadonly: false,
-            isSymbolicLink: false,
-            name: nls.localize('theia/collaboration/collaborationWorkspace', 'Collaboration Workspace'),
-            resource: CollaborationURI.create(this.collabWorkspace)
-        });
+        // await this.setWorkspace({
+        //     isDirectory: false,
+        //     isFile: true,
+        //     isReadonly: false,
+        //     isSymbolicLink: false,
+        //     name: nls.localize('theia/collaboration/collaborationWorkspace', 'Collaboration Workspace'),
+        //     resource: CollaborationURI.create(this.collabWorkspace)
+        // });
         return Disposable.create(() => {
             this.collabWorkspace = undefined;
             this.connection = undefined;

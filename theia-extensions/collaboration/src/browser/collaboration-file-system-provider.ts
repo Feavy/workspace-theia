@@ -26,7 +26,7 @@ import { ProtocolBroadcastConnection, Workspace, Peer } from 'open-collaboration
 
 export namespace CollaborationURI {
 
-    export const scheme = 'collaboration';
+    export const scheme = 'file';
 
     export function create(workspace: Workspace, path?: string): URI {
         return new URI(`${scheme}:///${workspace.name}${path ? '/' + path : ''}`);
@@ -77,13 +77,17 @@ export class CollaborationFileSystemProvider implements FileSystemProviderWithFi
         const path = this.getHostPath(resource);
         if (this.yjs.share.has(path)) {
             const stringValue = this.yjs.getText(path);
+            console.log(`readFile yjs: ${this.host.id} ${path} ${stringValue.toString()}`);
             return this.encoder.encode(stringValue.toString());
         } else {
             const data = await this.connection.fs.readFile(this.host.id, path);
+            console.log(`readFile remote: ${this.host.id} ${path} ${data.content.toString()}`);
             return data.content;
         }
     }
     async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+        const contentString = this.decoder.decode(content);
+        console.log(`writeFile: ${this.host.id} ${this.getHostPath(resource)} ${contentString}`);
         const path = this.getHostPath(resource);
         await this.connection.fs.writeFile(this.host.id, path, { content });
     }
