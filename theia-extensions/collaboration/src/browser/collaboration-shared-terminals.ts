@@ -29,31 +29,36 @@ export class CollaborationSharedTerminals {
             console.log("[CollaborationSharedTerminals] yTerminals changed", this.yTerminals.toJSON());
             this.updateTerminals()
         });
-        
+
         this.shell.onDidAddWidget(widget => {
             if (widget instanceof TerminalWidget) {
-                this.yTerminals.set(widget.terminalId.toString(), true);
-                widget.onDidDispose(() => this.onCloseTerminal(widget.terminalId));
+                widget.onDidOpen(_ => { // wait for terminalId to be set
+                    if (!this.yTerminals.has(widget.terminalId.toString())) {
+                        this.yTerminals.set(widget.terminalId.toString(), true);
+                    }
+                    widget.onDidDispose(() => this.onCloseTerminal(widget.terminalId));
+                });
             }
         });
 
-        await this.updateTerminals();
-        
         const openTerminals = this.shell.widgets.filter(widget => widget instanceof TerminalWidget) as TerminalWidget[];
-        for (const terminal of openTerminals) {
+        for (const terminal of openTerminals) { // terminalIds are already set for state terminals
             terminal.onDidDispose(() => this.onCloseTerminal(terminal.terminalId));
         }
     }
-    
+
     public async updateTerminals() {
         const sharedTerminals = this.yTerminals.toJSON();
 
         const openTerminals = this.shell.widgets.filter(widget => widget instanceof TerminalWidget) as TerminalWidget[];
-        for (const terminal of openTerminals) {
-            if (!this.yTerminals.has(terminal.terminalId.toString())) {
-                terminal.close(); // Close the terminal if it is not in the shared list
+        // share open terminals that are not shared
+        this.yjs.transact(() => {
+            for (const terminal of openTerminals) {
+                if (!this.yTerminals.has(terminal.terminalId.toString())) {
+                    this.yTerminals.set(terminal.terminalId.toString(), true);
+                }
             }
-        }
+        });
 
         // Open shared terminals
         for(const terminalId of Object.keys(sharedTerminals)) {

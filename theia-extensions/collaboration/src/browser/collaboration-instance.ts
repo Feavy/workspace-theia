@@ -177,6 +177,7 @@ export class CollaborationInstance implements Disposable {
         this.toDispose.push(this.yjsProvider);
         this.toDispose.push(connection);
         this.toDispose.push(this.onDidCloseEmitter);
+        this.collaborationSharedTerminals.init(this.yjs);
 
         this.registerProtocolEvents(connection);
         // this.registerEditorEvents(connection);
