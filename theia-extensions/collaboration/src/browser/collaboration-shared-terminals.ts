@@ -63,7 +63,7 @@ export class CollaborationSharedTerminals {
         // Open shared terminals
         for(const terminalId of Object.keys(sharedTerminals)) {
             const terminal = openTerminals.find(t => t.terminalId === parseInt(terminalId));
-            if(!terminal) {
+            if(!terminal && parseInt(terminalId) !== -1) {
                 // create terminal
                 console.log("[CollaborationSharedTerminals] New terminal", terminalId);
                 const newTerminal = await this.terminalService.newTerminal({});

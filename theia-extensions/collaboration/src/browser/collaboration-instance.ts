@@ -35,7 +35,7 @@ import { CollaborationFileSystemProvider, CollaborationURI } from './collaborati
 import { CancellationToken, Range } from '@theia/core/shared/vscode-languageserver-protocol';
 import { CollaborationColorService } from './collaboration-color-service';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
-import { FileChange, FileChangeType, FileOperation, FileReadStreamOptions } from '@theia/filesystem/lib/common/files';
+import { FileChange, FileChangeType, FileOperation, FileReadStreamOptions, FileWriteOptions } from '@theia/filesystem/lib/common/files';
 import { RemoteFileSystemProvider } from '@theia/filesystem/lib/common/remote-file-system-provider';
 import { OpenCollaborationYjsProvider } from 'open-collaboration-yjs';
 import { createMutex } from 'lib0/mutex';
@@ -608,18 +608,13 @@ export class CollaborationInstance implements Disposable {
             this.addPeer(peer);
         }
 
-        function getHostPath(uri: URI): string {
-            const path = uri.path.toString().substring(1).split('/');
-            return path.slice(1).join('/');
-        }
-
         this.registerEditorEvents(this.options.connection);
 
         const self = this;
 
         const readFileStreamRemote = RemoteFileSystemProvider.prototype.readFileStream;
         RemoteFileSystemProvider.prototype.readFileStream = function (resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-            const path = getHostPath(resource);
+            const path = self.utils.getProtocolPath(resource)!;
             if (self.yjs.share.has(path)) {
                 const stringValue = self.yjs.getText(path);
                 
@@ -631,6 +626,14 @@ export class CollaborationInstance implements Disposable {
                 return readFileStreamRemote.call(this, resource, opts, token);
             }
         };
+
+        const writeFileRemote = RemoteFileSystemProvider.prototype.writeFile;
+        RemoteFileSystemProvider.prototype.writeFile = async function (resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+            // Handle write file to update commit authors
+            const path = self.utils.getProtocolPath(resource)!;
+            await self.options.connection.fs.writeFile(self.host.id, path, { content: new Uint8Array() }); // no need to send content
+            return await writeFileRemote.call(this, resource, content, opts);
+        }
         // this.fileSystem = new CollaborationFileSystemProvider(this.options.connection, data.host, this.yjs);
         // this.fileSystem.readonly = this.readonly;
         // this.toDispose.push(this.fileService.registerProvider(CollaborationURI.scheme, this.fileSystem));
