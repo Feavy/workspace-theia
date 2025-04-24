@@ -58,7 +58,7 @@ export const DEFAULT_COLLABORATION_SERVER_URL = 'https://api.open-collab.tools/'
 UserStorageContribution.prototype.getCongigDirUri = async function(): Promise<URI> {
     // @ts-ignore
     const environments = this.environments;
-    const configDir = new URI(await environments.getConfigDirUri());
+    const configDir = new URI("file:///workspace/.theia");
     const workspaceServerUrl = (await environments.getValue(WORKSPACE_SERVER_URL))?.value!;
     const { error, email } =  await fetch(`${workspaceServerUrl}/api/profile`, {
         credentials: 'include',
