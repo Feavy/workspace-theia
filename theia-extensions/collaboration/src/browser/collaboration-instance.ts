@@ -627,12 +627,12 @@ export class CollaborationInstance implements Disposable {
             }
         };
 
-        const writeFileRemote = RemoteFileSystemProvider.prototype.writeFile;
+        // const writeFileRemote = RemoteFileSystemProvider.prototype.writeFile;
         RemoteFileSystemProvider.prototype.writeFile = async function (resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
             // Handle write file to update commit authors
             const path = self.utils.getProtocolPath(resource)!;
-            await self.options.connection.fs.writeFile(self.host.id, path, { content: new Uint8Array() }); // no need to send content
-            return await writeFileRemote.call(this, resource, content, opts);
+            await self.options.connection.fs.writeFile(self.host.id, path, { content }); // no need to send content
+            // return await writeFileRemote.call(this, resource, content, opts);
         }
         // this.fileSystem = new CollaborationFileSystemProvider(this.options.connection, data.host, this.yjs);
         // this.fileSystem.readonly = this.readonly;
