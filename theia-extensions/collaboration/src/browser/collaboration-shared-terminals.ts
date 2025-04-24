@@ -16,6 +16,7 @@ export class CollaborationSharedTerminals {
     @inject(TerminalService)
     protected readonly terminalService: TerminalService;
 
+    private localTerminals: Set<number> = new Set();
     private yjs: Y.Doc;
     private yTerminals: Y.Map<boolean>;
 
@@ -37,6 +38,7 @@ export class CollaborationSharedTerminals {
                         this.yTerminals.set(widget.terminalId.toString(), true);
                     }
                     widget.onDidDispose(() => this.onCloseTerminal(widget.terminalId));
+                    this.localTerminals.add(widget.terminalId);
                 });
             }
         });
@@ -44,6 +46,7 @@ export class CollaborationSharedTerminals {
         const openTerminals = this.shell.widgets.filter(widget => widget instanceof TerminalWidget) as TerminalWidget[];
         for (const terminal of openTerminals) { // terminalIds are already set for state terminals
             terminal.onDidDispose(() => this.onCloseTerminal(terminal.terminalId));
+            this.localTerminals.add(terminal.terminalId);
         }
     }
 
@@ -56,6 +59,7 @@ export class CollaborationSharedTerminals {
             for (const terminal of openTerminals) {
                 if (!this.yTerminals.has(terminal.terminalId.toString())) {
                     this.yTerminals.set(terminal.terminalId.toString(), true);
+                    this.localTerminals.add(terminal.terminalId)
                 }
             }
         });
@@ -63,7 +67,7 @@ export class CollaborationSharedTerminals {
         // Open shared terminals
         for(const terminalId of Object.keys(sharedTerminals)) {
             const terminal = openTerminals.find(t => t.terminalId === parseInt(terminalId));
-            if(!terminal && parseInt(terminalId) !== -1) {
+            if(!terminal && parseInt(terminalId) !== -1 && !this.localTerminals.has(parseInt(terminalId))) {
                 // create terminal
                 console.log("[CollaborationSharedTerminals] New terminal", terminalId);
                 const newTerminal = await this.terminalService.newTerminal({});
@@ -74,6 +78,7 @@ export class CollaborationSharedTerminals {
                     }
                 });
                 newTerminal.onDidDispose(() => this.onCloseTerminal(newTerminal.terminalId));
+                this.localTerminals.add(newTerminal.terminalId);
             }
         }
     }
