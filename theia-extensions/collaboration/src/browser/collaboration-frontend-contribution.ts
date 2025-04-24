@@ -17,7 +17,8 @@
 import '../../src/browser/style/index.css';
 
 import {
-    CancellationToken, CancellationTokenSource, Command, CommandContribution, CommandRegistry, MessageService, nls, Progress, QuickInputService, QuickPickItem
+    CancellationToken, CancellationTokenSource, Command, CommandContribution, CommandRegistry, MessageService, nls, Progress, QuickInputService, QuickPickItem,
+    URI
 } from '@theia/core';
 import { inject, injectable, optional, postConstruct } from '@theia/core/shared/inversify';
 import { ConnectionProvider, SocketIoTransportProvider } from 'open-collaboration-protocol';
@@ -30,6 +31,7 @@ import { StatusBar, StatusBarAlignment, StatusBarEntry } from '@theia/core/lib/b
 import { codiconArray } from '@theia/core/lib/browser/widgets/widget';
 import { FrontendApplicationConfigProvider } from '@theia/core/lib/browser/frontend-application-config-provider';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
+import { UserStorageContribution } from '@theia/userstorage/lib/browser/user-storage-contribution';
 
 export const COLLABORATION_CATEGORY = 'Collaboration';
 
@@ -48,6 +50,27 @@ export const COLLABORATION_AUTH_TOKEN = 'THEIA_COLLAB_AUTH_TOKEN';
 export const COLLABORATION_SERVER_URL = 'COLLABORATION_SERVER_URL';
 export const WORKSPACE_SERVER_URL = 'WORKSPACE_SERVER_URL';
 export const DEFAULT_COLLABORATION_SERVER_URL = 'https://api.open-collab.tools/';
+
+/**
+ * Replace configDir to a userbased directory.
+*/
+//@ts-ignore TODO attention the typo might be fixed at some time "Congig"
+UserStorageContribution.prototype.getCongigDirUri = async function(): Promise<URI> {
+    // @ts-ignore
+    const environments = this.environments;
+    const configDir = new URI(await environments.getConfigDirUri());
+    const workspaceServerUrl = (await environments.getValue(WORKSPACE_SERVER_URL))?.value!;
+    const { error, email } =  await fetch(`${workspaceServerUrl}/api/profile`, {
+        credentials: 'include',
+        method: 'GET',
+    }).then(response => response.json());
+    if(error) {
+        console.error("No email found, returning default configDir " + configDir);
+        return configDir;
+    }
+    return configDir.resolve(email);
+}
+
 
 @injectable()
 export class CollaborationFrontendContribution implements CommandContribution {

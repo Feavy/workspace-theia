@@ -10,6 +10,7 @@
     "@theia/monaco": "1.60.1",
     "@theia/monaco-editor-core": "1.96.302",
     "@theia/workspace": "1.60.1",
+    "@theia/userstorage": "1.60.1",
     "lib0": "^0.2.52",
     "open-collaboration-protocol": "0.2.0",
     "open-collaboration-yjs": "0.2.0",
